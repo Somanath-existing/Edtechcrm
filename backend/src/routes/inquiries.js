@@ -3,35 +3,45 @@ const router = express.Router();
 const pool = require('../db');
 const authMiddleware = require('../middleware/auth');
 
-// POST /api/inquiries  – public, no auth needed
-router.post('/', async (req, res) => {
-  const { name, email, phone, user_type, category, message } = req.body;
+// UUID v4 format validator
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-  // Basic validation
+// Basic XSS sanitizer (removes HTML tags)
+function sanitizeText(str) {
+  if (typeof str !== 'string') return '';
+  return str.replace(/<[^>]*>?/gm, '').trim();
+}
+
+// POST /api/inquiries – public submission
+router.post('/', async (req, res) => {
+  let { name, email, phone, user_type, category, message } = req.body;
+
+  name = sanitizeText(name);
+  email = typeof email === 'string' ? email.trim().toLowerCase() : '';
+  phone = sanitizeText(phone);
+  message = sanitizeText(message);
+
+  // Validation
   const errors = [];
-  if (!name?.trim())     errors.push('Name is required.');
-  if (!email?.trim())    errors.push('Email is required.');
-  if (!phone?.trim())    errors.push('Phone number is required.');
-  if (!user_type)        errors.push('User type is required.');
-  if (!category)         errors.push('Category is required.');
-  if (!message?.trim())  errors.push('Message is required.');
+  if (!name || name.length > 150) errors.push('Name is required (max 150 characters).');
+  if (!email || email.length > 255) errors.push('Email is required (max 255 characters).');
+  if (!phone || phone.length > 20) errors.push('Phone number is required (max 20 characters).');
+  if (!user_type) errors.push('User type is required.');
+  if (!category) errors.push('Category is required.');
+  if (!message || message.length > 5000) errors.push('Message is required (max 5000 characters).');
 
   const validUserTypes = ['Parent', 'Student', 'School'];
   const validCategories = ['Scholarship', 'Concert', 'Admission', 'General Query'];
 
-  if (user_type && !validUserTypes.includes(user_type))
-    errors.push('Invalid user type.');
-  if (category && !validCategories.includes(category))
-    errors.push('Invalid category.');
+  if (user_type && !validUserTypes.includes(user_type)) errors.push('Invalid user type.');
+  if (category && !validCategories.includes(category)) errors.push('Invalid category.');
 
-  // Simple email format check
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (email && !emailRegex.test(email)) errors.push('Invalid email format.');
 
-  // Phone: 7-15 digits, optional leading +
+  const phoneCleaned = phone.replace(/[\s\-()]/g, '');
   const phoneRegex = /^\+?[0-9]{7,15}$/;
-  if (phone && !phoneRegex.test(phone.replace(/[\s\-()]/g, '')))
-    errors.push('Invalid phone number.');
+  if (phone && !phoneRegex.test(phoneCleaned)) errors.push('Invalid phone number format.');
 
   if (errors.length > 0) {
     return res.status(400).json({ message: 'Validation failed.', errors });
@@ -42,7 +52,7 @@ router.post('/', async (req, res) => {
       `INSERT INTO inquiries (name, email, phone, user_type, category, message)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING id, name, email, phone, user_type, category, message, status, created_at`,
-      [name.trim(), email.trim().toLowerCase(), phone.trim(), user_type, category, message.trim()]
+      [name, email, phone, user_type, category, message]
     );
 
     res.status(201).json({
@@ -50,78 +60,90 @@ router.post('/', async (req, res) => {
       inquiry: result.rows[0],
     });
   } catch (err) {
-    console.error('Submit inquiry error:', err);
-    res.status(500).json({ message: 'Internal server error. Please try again.' });
+    console.error('Submit inquiry error:', err.message);
+    res.status(500).json({ message: 'Internal server error. Please try again later.' });
   }
 });
 
-// GET /api/inquiries  – admin only, with filters & search
+// GET /api/inquiries – admin only, with pagination & safe limits
 router.get('/', authMiddleware, async (req, res) => {
   const { category, user_type, search, status, page = 1, limit = 20 } = req.query;
+
+  // Strict pagination bounds to prevent DoS via massive limits
+  const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 100);
+  const safePage = Math.max(parseInt(page, 10) || 1, 1);
+  const offset = (safePage - 1) * safeLimit;
 
   const conditions = [];
   const params = [];
   let paramIdx = 1;
 
-  if (category) {
+  const validCategories = ['Scholarship', 'Concert', 'Admission', 'General Query'];
+  const validUserTypes = ['Parent', 'Student', 'School'];
+  const validStatuses = ['New', 'In Progress', 'Resolved', 'Closed'];
+
+  if (category && validCategories.includes(category)) {
     conditions.push(`category = $${paramIdx++}`);
     params.push(category);
   }
-  if (user_type) {
+  if (user_type && validUserTypes.includes(user_type)) {
     conditions.push(`user_type = $${paramIdx++}`);
     params.push(user_type);
   }
-  if (status) {
+  if (status && validStatuses.includes(status)) {
     conditions.push(`status = $${paramIdx++}`);
     params.push(status);
   }
-  if (search) {
-    conditions.push(`(name ILIKE $${paramIdx} OR phone ILIKE $${paramIdx})`);
-    params.push(`%${search}%`);
-    paramIdx++;
+  if (search && typeof search === 'string') {
+    const sanitizedSearch = sanitizeText(search).slice(0, 50);
+    if (sanitizedSearch) {
+      conditions.push(`(name ILIKE $${paramIdx} OR phone ILIKE $${paramIdx})`);
+      params.push(`%${sanitizedSearch}%`);
+      paramIdx++;
+    }
   }
 
   const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
 
-  const offset = (parseInt(page) - 1) * parseInt(limit);
-
   try {
-    // Total count for pagination
     const countResult = await pool.query(
       `SELECT COUNT(*) FROM inquiries ${whereClause}`,
       params
     );
-    const total = parseInt(countResult.rows[0].count);
+    const total = parseInt(countResult.rows[0].count, 10);
 
-    // Paginated results
     const result = await pool.query(
       `SELECT id, name, email, phone, user_type, category, message, status, created_at
        FROM inquiries
        ${whereClause}
        ORDER BY created_at DESC
        LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`,
-      [...params, parseInt(limit), offset]
+      [...params, safeLimit, offset]
     );
 
     res.json({
       inquiries: result.rows,
       pagination: {
         total,
-        page: parseInt(page),
-        limit: parseInt(limit),
-        totalPages: Math.ceil(total / parseInt(limit)),
+        page: safePage,
+        limit: safeLimit,
+        totalPages: Math.ceil(total / safeLimit),
       },
     });
   } catch (err) {
-    console.error('Fetch inquiries error:', err);
+    console.error('Fetch inquiries error:', err.message);
     res.status(500).json({ message: 'Internal server error.' });
   }
 });
 
-// PATCH /api/inquiries/:id/status  – admin only
+// PATCH /api/inquiries/:id/status – admin only (with UUID validation to prevent IDOR / SQL errors)
 router.patch('/:id/status', authMiddleware, async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
+
+  if (!id || !UUID_REGEX.test(id)) {
+    return res.status(400).json({ message: 'Invalid inquiry ID format.' });
+  }
 
   const validStatuses = ['New', 'In Progress', 'Resolved', 'Closed'];
   if (!validStatuses.includes(status)) {
@@ -142,12 +164,12 @@ router.patch('/:id/status', authMiddleware, async (req, res) => {
 
     res.json({ message: 'Status updated.', inquiry: result.rows[0] });
   } catch (err) {
-    console.error('Update status error:', err);
+    console.error('Update status error:', err.message);
     res.status(500).json({ message: 'Internal server error.' });
   }
 });
 
-// GET /api/inquiries/stats  – admin only, dashboard summary
+// GET /api/inquiries/stats – admin only, dashboard summary
 router.get('/stats', authMiddleware, async (req, res) => {
   try {
     const result = await pool.query(`
@@ -169,7 +191,7 @@ router.get('/stats', authMiddleware, async (req, res) => {
 
     res.json({ stats: result.rows[0] });
   } catch (err) {
-    console.error('Stats error:', err);
+    console.error('Stats error:', err.message);
     res.status(500).json({ message: 'Internal server error.' });
   }
 });

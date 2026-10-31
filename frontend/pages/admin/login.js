@@ -10,8 +10,7 @@ export default function AdminLogin() {
   const router = useRouter();
 
   useEffect(() => {
-    const token = localStorage.getItem('admin_token');
-    if (token) router.replace('/admin/dashboard');
+    api.me().then(() => router.replace('/admin/dashboard')).catch(() => {});
   }, [router]);
 
   const handleChange = (e) => {
@@ -26,7 +25,7 @@ export default function AdminLogin() {
     setLoading(true);
     try {
       const data = await api.login(form);
-      localStorage.setItem('admin_token', data.token);
+      localStorage.removeItem('admin_token'); // Ensure no token in localStorage
       localStorage.setItem('admin_info', JSON.stringify(data.admin));
       router.replace('/admin/dashboard');
     } catch (err) {

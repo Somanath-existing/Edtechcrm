@@ -37,15 +37,23 @@ export default function Dashboard() {
   const [selectedInquiry, setSelected] = useState(null);
   const [updatingId, setUpdatingId]   = useState(null);
   const [search, setSearch]           = useState('');
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [pwdForm, setPwdForm]         = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [pwdLoading, setPwdLoading]   = useState(false);
+  const [pwdMsg, setPwdMsg]           = useState({ type: '', text: '' });
 
   // Auth guard
   useEffect(() => {
-    const token = localStorage.getItem('admin_token');
-    const info  = localStorage.getItem('admin_info');
-    if (!token) { router.replace('/admin/login'); return; }
-    setAdmin(JSON.parse(info || '{}'));
-    fetchStats();
-    setLoading(false);
+    api.me()
+      .then(d => {
+        setAdmin(d.admin);
+        fetchStats();
+        setLoading(false);
+      })
+      .catch(() => {
+        localStorage.clear();
+        router.replace('/admin/login');
+      });
   }, []);
 
   const fetchStats = async () => {
@@ -83,7 +91,37 @@ export default function Dashboard() {
     finally { setUpdatingId(null); }
   };
 
-  const logout = () => { localStorage.clear(); router.replace('/admin/login'); };
+  const logout = async () => {
+    try { await api.logout(); } catch {}
+    localStorage.clear();
+    router.replace('/admin/login');
+  };
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    setPwdMsg({ type: '', text: '' });
+    if (pwdForm.newPassword !== pwdForm.confirmPassword) {
+      setPwdMsg({ type: 'error', text: 'New passwords do not match.' });
+      return;
+    }
+    setPwdLoading(true);
+    try {
+      const res = await api.changePassword({
+        currentPassword: pwdForm.currentPassword,
+        newPassword: pwdForm.newPassword,
+      });
+      if (res.token) {
+        localStorage.setItem('admin_token', res.token);
+      }
+      setPwdMsg({ type: 'success', text: 'Password successfully updated! All other sessions were revoked.' });
+      setPwdForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+      setTimeout(() => setShowPasswordModal(false), 2000);
+    } catch (err) {
+      setPwdMsg({ type: 'error', text: err.message });
+    } finally {
+      setPwdLoading(false);
+    }
+  };
 
   const fmt = (d) => new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 
@@ -115,6 +153,7 @@ export default function Dashboard() {
                 <span style={{ display: 'none' }}>{admin.name}</span>
               </span>
             )}
+            <button onClick={() => setShowPasswordModal(true)} className="btn btn-outline btn-sm">Change Password</button>
             <button onClick={logout} className="btn btn-outline btn-sm">Logout</button>
           </div>
         </div>
@@ -323,6 +362,74 @@ export default function Dashboard() {
                 {STATUSES.map(s => <option key={s}>{s}</option>)}
               </select>
             </div>
+          </div>
+        </div>
+      {/* ── Change Password Modal ── */}
+      {showPasswordModal && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}
+          onClick={() => setShowPasswordModal(false)}
+        >
+          <div
+            className="card"
+            style={{ maxWidth: 440, width: '100%', padding: '2rem' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text)' }}>Change Admin Password</h3>
+              <button onClick={() => setShowPasswordModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem', color: 'var(--text-3)' }}>✕</button>
+            </div>
+
+            {pwdMsg.text && (
+              <div style={{ padding: '.75rem 1rem', borderRadius: 8, marginBottom: '1rem', fontSize: '.85rem', background: pwdMsg.type === 'error' ? 'rgba(239,68,68,.1)' : 'rgba(16,185,129,.1)', color: pwdMsg.type === 'error' ? '#dc2626' : '#059669', border: `1px solid ${pwdMsg.type === 'error' ? '#fca5a5' : '#6ee7b7'}` }}>
+                {pwdMsg.text}
+              </div>
+            )}
+
+            <form onSubmit={handleChangePassword} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div className="form-group">
+                <label className="form-label">Current Password</label>
+                <input
+                  type="password"
+                  required
+                  value={pwdForm.currentPassword}
+                  onChange={e => setPwdForm({ ...pwdForm, currentPassword: e.target.value })}
+                  className="form-control"
+                  placeholder="Enter current password"
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">New Password</label>
+                <input
+                  type="password"
+                  required
+                  value={pwdForm.newPassword}
+                  onChange={e => setPwdForm({ ...pwdForm, newPassword: e.target.value })}
+                  className="form-control"
+                  placeholder="Min 8 chars, uppercase, lowercase, number, symbol"
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Confirm New Password</label>
+                <input
+                  type="password"
+                  required
+                  value={pwdForm.confirmPassword}
+                  onChange={e => setPwdForm({ ...pwdForm, confirmPassword: e.target.value })}
+                  className="form-control"
+                  placeholder="Confirm new password"
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '.75rem', marginTop: '.5rem' }}>
+                <button type="button" onClick={() => setShowPasswordModal(false)} className="btn btn-outline btn-sm">Cancel</button>
+                <button type="submit" disabled={pwdLoading} className="btn btn-primary btn-sm">
+                  {pwdLoading ? 'Updating…' : 'Update Password'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

@@ -32,12 +32,16 @@ CREATE TABLE IF NOT EXISTS admins (
   name          VARCHAR(100)  NOT NULL,
   email         VARCHAR(255)  NOT NULL UNIQUE,
   password_hash TEXT          NOT NULL,
+  token_version INT           NOT NULL DEFAULT 1,
   created_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
   updated_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
 -- Index for fast login lookup
 CREATE INDEX IF NOT EXISTS idx_admins_email ON admins (email);
+
+-- Enable Row Level Security (RLS)
+ALTER TABLE admins ENABLE ROW LEVEL SECURITY;
 
 -- ─── INQUIRIES ───────────────────────────────────────────────────────────────
 
@@ -60,6 +64,9 @@ CREATE INDEX IF NOT EXISTS idx_inquiries_user_type  ON inquiries (user_type);
 CREATE INDEX IF NOT EXISTS idx_inquiries_status     ON inquiries (status);
 CREATE INDEX IF NOT EXISTS idx_inquiries_created_at ON inquiries (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_inquiries_name       ON inquiries USING GIN (to_tsvector('english', name));
+
+-- Enable Row Level Security (RLS)
+ALTER TABLE inquiries ENABLE ROW LEVEL SECURITY;
 
 -- ─── AUTO-UPDATE updated_at ────────────────────────────────────────────────
 
