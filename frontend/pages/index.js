@@ -10,22 +10,22 @@ const initialForm = {
 };
 
 export default function InquiryForm() {
-  const [form, setForm]         = useState(initialForm);
-  const [errors, setErrors]     = useState({});
-  const [status, setStatus]     = useState(null); // 'success' | 'error'
-  const [message, setMessage]   = useState('');
-  const [loading, setLoading]   = useState(false);
+  const [form, setForm] = useState(initialForm);
+  const [errors, setErrors] = useState({});
+  const [status, setStatus] = useState(null); // 'success' | 'error'
+  const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const validate = () => {
     const e = {};
-    if (!form.name.trim())     e.name      = 'Full name is required.';
-    if (!form.email.trim())    e.email     = 'Email is required.';
+    if (!form.name.trim()) e.name = 'Full name is required.';
+    if (!form.email.trim()) e.email = 'Email is required.';
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = 'Enter a valid email.';
-    if (!form.phone.trim())    e.phone     = 'Phone number is required.';
+    if (!form.phone.trim()) e.phone = 'Phone number is required.';
     else if (!/^\+?[0-9\s\-()]{7,15}$/.test(form.phone)) e.phone = 'Enter a valid phone number.';
-    if (!form.user_type)       e.user_type = 'Please select a user type.';
-    if (!form.category)        e.category  = 'Please select a category.';
-    if (!form.message.trim())  e.message   = 'Message is required.';
+    if (!form.user_type) e.user_type = 'Please select a user type.';
+    if (!form.category) e.category = 'Please select a category.';
+    if (!form.message.trim()) e.message = 'Message is required.';
     else if (form.message.trim().length < 10) e.message = 'Message must be at least 10 characters.';
     return e;
   };
@@ -58,10 +58,10 @@ export default function InquiryForm() {
         err.errors.forEach(e => {
           const key = e.toLowerCase().includes('name') ? 'name'
             : e.toLowerCase().includes('email') ? 'email'
-            : e.toLowerCase().includes('phone') ? 'phone'
-            : e.toLowerCase().includes('user') ? 'user_type'
-            : e.toLowerCase().includes('categor') ? 'category'
-            : 'message';
+              : e.toLowerCase().includes('phone') ? 'phone'
+                : e.toLowerCase().includes('user') ? 'user_type'
+                  : e.toLowerCase().includes('categor') ? 'category'
+                    : 'message';
           fieldErrors[key] = e;
         });
         setErrors(fieldErrors);
@@ -93,14 +93,14 @@ export default function InquiryForm() {
       <section style={{ padding: '3.5rem 0 2rem', textAlign: 'center' }}>
         <div className="container">
           <div style={{ display: 'inline-block', background: 'rgba(79,70,229,.1)', color: 'var(--brand-primary)', padding: '.35rem 1rem', borderRadius: 999, fontSize: '.8rem', fontWeight: 600, marginBottom: '1rem' }}>
-            ✦ Official Inquiry Portal
+            Inquiry Portal
           </div>
           <h1 style={{ fontSize: 'clamp(1.75rem,4vw,2.75rem)', fontWeight: 800, color: 'var(--text)', lineHeight: 1.2, marginBottom: '1rem' }}>
             Have a Question?<br />
             <span style={{ color: 'var(--brand-primary)' }}>We're Here to Help.</span>
           </h1>
           <p style={{ fontSize: '1.05rem', color: 'var(--text-2)', maxWidth: 520, margin: '0 auto 2rem' }}>
-            Fill in the form below and our team will get back to you within 24 hours.
+            Fill in the form below and our team will get back to you soon
           </p>
         </div>
       </section>
@@ -206,7 +206,7 @@ export default function InquiryForm() {
       </main>
 
       <footer style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--text-3)', fontSize: '.82rem', borderTop: '1px solid var(--border)', background: 'var(--surface)' }}>
-        © {new Date().getFullYear()} EdTech CRM. All rights reserved.
+        EdTech CRM
       </footer>
     </div>
   );
