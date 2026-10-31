@@ -92,10 +92,17 @@ const inquirySubmissionLimiter = rateLimit({
   message: { message: 'Inquiry submission limit reached. Please try again after an hour.' },
 });
 
-app.use(generalLimiter);
+// ─── Health / Keep-Alive Checkpoints (Exempt from rate limiting for Render 24/7 cron pings) ───
+app.get(['/health', '/api/health', '/ping'], (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    uptime: Math.floor(process.uptime()),
+    timestamp: new Date().toISOString(),
+    message: 'EdTech CRM backend is awake and active',
+  });
+});
 
-// ─── Routes ──────────────────────────────────────────────────────────────────
-app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
+app.use(generalLimiter);
 
 app.use('/api/auth/login', loginLimiter);
 app.use('/api/auth', authRoutes);

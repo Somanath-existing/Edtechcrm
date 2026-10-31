@@ -153,7 +153,7 @@ export default function InquiryForm() {
               <label className="form-label" htmlFor="name">Full Name *</label>
               <input
                 type="text" id="name" name="name" value={form.name}
-                onChange={handleChange} placeholder="e.g. Rahul Sharma"
+                onChange={handleChange} placeholder="Enter your full name"
                 className={`form-control${errors.name ? ' error' : ''}`}
               />
               {errors.name && <span className="error-msg">⚠ {errors.name}</span>}
@@ -165,7 +165,7 @@ export default function InquiryForm() {
                 <label className="form-label" htmlFor="email">Email Address *</label>
                 <input
                   type="email" id="email" name="email" value={form.email}
-                  onChange={handleChange} placeholder="you@example.com"
+                  onChange={handleChange} placeholder="Enter your email address"
                   className={`form-control${errors.email ? ' error' : ''}`}
                 />
                 {errors.email && <span className="error-msg">⚠ {errors.email}</span>}
@@ -175,7 +175,7 @@ export default function InquiryForm() {
                 <label className="form-label" htmlFor="phone">Phone Number *</label>
                 <input
                   type="tel" id="phone" name="phone" value={form.phone}
-                  onChange={handleChange} placeholder="+91 98765 43210"
+                  onChange={handleChange} placeholder="Enter your phone number"
                   className={`form-control${errors.phone ? ' error' : ''}`}
                 />
                 {errors.phone && <span className="error-msg">⚠ {errors.phone}</span>}
@@ -188,7 +188,7 @@ export default function InquiryForm() {
               <textarea
                 id="message" name="message" value={form.message}
                 onChange={handleChange}
-                placeholder="Describe your query in detail…"
+                placeholder="Enter your query or message in detail…"
                 className={`form-control${errors.message ? ' error' : ''}`}
                 rows={5}
               />
@@ -202,21 +202,6 @@ export default function InquiryForm() {
               {loading ? <><span className="spinner" /> Submitting…</> : 'Submit Inquiry →'}
             </button>
           </form>
-        </div>
-
-        {/* Info cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginTop: '1.5rem' }}>
-          {[
-            { icon: '⚡', label: 'Quick Response', sub: 'Within 24 hours' },
-            { icon: '🔒', label: 'Secure & Private', sub: 'Your data is safe' },
-            { icon: '📋', label: 'All Categories', sub: 'Admissions, Scholarships & more' },
-          ].map(({ icon, label, sub }) => (
-            <div key={label} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '1rem', textAlign: 'center' }}>
-              <div style={{ fontSize: '1.5rem', marginBottom: '.4rem' }}>{icon}</div>
-              <div style={{ fontWeight: 700, fontSize: '.85rem', color: 'var(--text)' }}>{label}</div>
-              <div style={{ fontSize: '.75rem', color: 'var(--text-3)', marginTop: '.2rem' }}>{sub}</div>
-            </div>
-          ))}
         </div>
       </main>
 
