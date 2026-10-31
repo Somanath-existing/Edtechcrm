@@ -1,0 +1,89 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  # ─── 1. TEST & VALIDATE ──────────────────────────────────────────────────────
+  test:
+    name: Build & Validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Install & Validate Backend
+        run: |
+          cd backend
+          npm ci
+          node --check src/index.js
+          node --check src/routes/auth.js
+          node --check src/routes/inquiries.js
+
+      - name: Install & Build Frontend
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+        env:
+          NEXT_PUBLIC_API_URL: https://edtech-crm-backend.onrender.com
+
+  # ─── 2. DEPLOY TO RENDER (BACKEND) ───────────────────────────────────────────
+  deploy-render:
+    name: Deploy Backend to Render
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render Deploy Hook
+        if: env.RENDER_DEPLOY_HOOK_URL != ''
+        run: |
+          echo "Triggering Render Webhook Deployment..."
+          curl -fsS -X POST "$RENDER_DEPLOY_HOOK_URL"
+          echo "Deployment triggered successfully!"
+        env:
+          RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+
+  # ─── 3. DEPLOY TO VERCEL (FRONTEND) ─────────────────────────────────────────
+  deploy-vercel:
+    name: Deploy Frontend to Vercel
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Vercel CLI
+        if: env.VERCEL_TOKEN != ''
+        run: npm install -g vercel@latest
+
+      - name: Deploy Frontend to Vercel
+        if: env.VERCEL_TOKEN != ''
+        run: |
+          cd frontend
+          vercel pull --yes --environment=production --token=$VERCEL_TOKEN
+          vercel build --prod --token=$VERCEL_TOKEN
+          vercel deploy --prebuilt --prod --token=$VERCEL_TOKEN
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}

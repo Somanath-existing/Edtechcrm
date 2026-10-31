@@ -364,6 +364,8 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+      )}
+
       {/* ── Change Password Modal ── */}
       {showPasswordModal && (
         <div
