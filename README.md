@@ -117,27 +117,27 @@ The backend implements authentication entirely from scratch — **no Supabase Au
 |-----------|----------------|
 | Password storage | `bcrypt` with 12 salt rounds |
 | Token generation | `jsonwebtoken` — HS256, expires in 8h |
-| Protected routes | `src/middleware/auth.js` verifies `Authorization: Bearer <token>` |
-| Admin creation | `POST /api/auth/register` requires `ADMIN_REGISTER_SECRET` env var |
+| Token transport | `httpOnly` cookie (`admin_token`) — not localStorage or Bearer header |
+| Protected routes | `src/middleware/auth.js` reads JWT from the `admin_token` cookie |
+| Token revocation | `token_version` column in `admins` table — increments on logout / password change, instantly invalidating all old sessions |
+| Admin creation | Run `npm run seed` once to create the default admin |
 
-### Test the auth flow
+### Test the auth flow (curl)
 
 ```bash
-# 1. Login
-curl -X POST http://localhost:4000/api/auth/login \
+# 1. Login — saves the httpOnly cookie to cookie.txt
+curl -c cookie.txt -X POST http://localhost:4000/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"admin@edtech.com","password":"Admin@123456"}'
 
-# 2. Use the returned token
-TOKEN="<paste token here>"
+# 2. Access a protected route — sends the cookie automatically
+curl -b cookie.txt http://localhost:4000/api/inquiries
 
-# 3. Access protected route
-curl http://localhost:4000/api/inquiries \
-  -H "Authorization: Bearer $TOKEN"
+# 3. Verify current session
+curl -b cookie.txt http://localhost:4000/api/auth/me
 
-# 4. Verify token
-curl http://localhost:4000/api/auth/me \
-  -H "Authorization: Bearer $TOKEN"
+# 4. Logout — clears the cookie server-side
+curl -b cookie.txt -c cookie.txt -X POST http://localhost:4000/api/auth/logout
 ```
 
 ---
@@ -203,9 +203,15 @@ Run the schema in **Supabase → SQL Editor** before starting the backend.
 ## 🔒 Security
 
 - Passwords hashed with `bcrypt` (12 rounds)
-- JWTs expire after 8 hours
-- Helmet.js security headers
-- CORS restricted to configured origins
-- Rate limiting on all routes + stricter limits on inquiry submission
-- Input validation on both frontend and backend
-- Parameterized queries (no SQL injection)
+- JWTs expire after 8 hours; stored in `httpOnly` + `Secure` + `SameSite` cookies (not localStorage — immune to XSS token theft)
+- Instant token revocation via `token_version` column (logout or password change invalidates all existing sessions)
+- Helmet.js security headers (`X-Frame-Options`, `X-Content-Type-Options`, CSP, etc.)
+- CORS restricted to configured origins only
+- CSRF protection: origin/referer header validated on all mutating requests in production
+- Rate limiting: 300 req/15 min general; 5 failed logins/15 min; 10 inquiry submissions/hour per IP
+- Input validation and XSS sanitization on both frontend and backend
+- Parameterized queries throughout — no SQL injection possible
+- UUID format validation on all ID parameters (prevents IDOR/BOLA attacks)
+- Request body size capped at 10 KB (prevents memory exhaustion)
+- Row Level Security (RLS) enabled on all Supabase tables
+- `statement_timeout` on database pool (prevents long-running query DoS)
