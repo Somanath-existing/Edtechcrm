@@ -7,6 +7,13 @@ const CATEGORIES  = ['', 'Scholarship', 'Concert', 'Admission', 'General Query']
 const USER_TYPES  = ['', 'Parent', 'Student', 'School'];
 const STATUSES    = ['New', 'In Progress', 'Resolved', 'Closed'];
 
+const ALLOWED_TRANSITIONS = {
+  'New': ['In Progress', 'Closed'],
+  'In Progress': ['Resolved', 'Closed'],
+  'Resolved': ['Closed', 'In Progress'],
+  'Closed': ['In Progress'], // Reopen only
+};
+
 function badgeClass(type, value) {
   const map = {
     status: { 'New': 'badge-new', 'In Progress': 'badge-in-progress', 'Resolved': 'badge-resolved', 'Closed': 'badge-closed' },
@@ -275,9 +282,14 @@ export default function Dashboard() {
                         onChange={e => handleStatusUpdate(inq.id, e.target.value)}
                         disabled={updatingId === inq.id}
                         className="form-control"
-                        style={{ padding: '.3rem .6rem', fontSize: '.8rem', width: 'auto', minWidth: 120 }}
+                        style={{ padding: '.3rem .6rem', fontSize: '.8rem', width: 'auto', minWidth: 140 }}
                       >
-                        {STATUSES.map(s => <option key={s}>{s}</option>)}
+                        <option value={inq.status} disabled>{inq.status} (Current)</option>
+                        {(ALLOWED_TRANSITIONS[inq.status] || []).map(next => (
+                          <option key={next} value={next}>
+                            {inq.status === 'Closed' ? '↺ Reopen' : `→ ${next}`}
+                          </option>
+                        ))}
                       </select>
                     </td>
                   </tr>
@@ -359,7 +371,12 @@ export default function Dashboard() {
                 disabled={updatingId === selectedInquiry.id}
                 className="form-control"
               >
-                {STATUSES.map(s => <option key={s}>{s}</option>)}
+                <option value={selectedInquiry.status} disabled>{selectedInquiry.status} (Current)</option>
+                {(ALLOWED_TRANSITIONS[selectedInquiry.status] || []).map(next => (
+                  <option key={next} value={next}>
+                    {selectedInquiry.status === 'Closed' ? '↺ Reopen (In Progress)' : `→ Move to ${next}`}
+                  </option>
+                ))}
               </select>
             </div>
           </div>

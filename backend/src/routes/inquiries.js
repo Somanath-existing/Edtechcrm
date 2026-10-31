@@ -136,7 +136,15 @@ router.get('/', authMiddleware, async (req, res) => {
   }
 });
 
-// PATCH /api/inquiries/:id/status – admin only (with UUID validation to prevent IDOR / SQL errors)
+// Allowed lifecycle transitions
+const ALLOWED_TRANSITIONS = {
+  'New': ['In Progress', 'Closed'],
+  'In Progress': ['Resolved', 'Closed'],
+  'Resolved': ['Closed', 'In Progress'],
+  'Closed': ['In Progress'], // Reopen only
+};
+
+// PATCH /api/inquiries/:id/status – admin only (with state machine validation)
 router.patch('/:id/status', authMiddleware, async (req, res) => {
   const { id } = req.params;
   const { status } = req.body;
@@ -151,6 +159,29 @@ router.patch('/:id/status', authMiddleware, async (req, res) => {
   }
 
   try {
+    // 1. Fetch current status
+    const currentResult = await pool.query('SELECT id, name, status FROM inquiries WHERE id = $1', [id]);
+    if (currentResult.rows.length === 0) {
+      return res.status(404).json({ message: 'Inquiry not found.' });
+    }
+
+    const currentStatus = currentResult.rows[0].status;
+
+    // 2. If same status, no-op
+    if (currentStatus === status) {
+      return res.json({ message: `Status is already ${status}.`, inquiry: currentResult.rows[0] });
+    }
+
+    // 3. Enforce lifecycle state machine rules
+    const allowed = ALLOWED_TRANSITIONS[currentStatus] || [];
+    if (!allowed.includes(status)) {
+      return res.status(400).json({
+        message: `Invalid status transition: Cannot change status from "${currentStatus}" to "${status}".`,
+        allowedTransitions: allowed,
+      });
+    }
+
+    // 4. Update status
     const result = await pool.query(
       `UPDATE inquiries SET status = $1, updated_at = NOW()
        WHERE id = $2
@@ -158,11 +189,7 @@ router.patch('/:id/status', authMiddleware, async (req, res) => {
       [status, id]
     );
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ message: 'Inquiry not found.' });
-    }
-
-    res.json({ message: 'Status updated.', inquiry: result.rows[0] });
+    res.json({ message: `Status updated from ${currentStatus} to ${status}.`, inquiry: result.rows[0] });
   } catch (err) {
     console.error('Update status error:', err.message);
     res.status(500).json({ message: 'Internal server error.' });

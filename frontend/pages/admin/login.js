@@ -4,14 +4,14 @@ import Link from 'next/link';
 import { api } from '../../lib/api';
 
 export default function AdminLogin() {
-  const [form, setForm]                 = useState({ email: '', password: '' });
+  const [form, setForm] = useState({ email: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError]               = useState('');
-  const [loading, setLoading]           = useState(false);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
-    api.me().then(() => router.replace('/admin/dashboard')).catch(() => {});
+    api.me().then(() => router.replace('/admin/dashboard')).catch(() => { });
   }, [router]);
 
   const handleChange = (e) => {
@@ -135,9 +135,7 @@ export default function AdminLogin() {
           </p>
         </div>
 
-        <p style={{ textAlign: 'center', color: 'rgba(255,255,255,.4)', fontSize: '.78rem', marginTop: '1.5rem' }}>
-          Protected by JWT authentication
-        </p>
+
       </div>
     </div>
   );
